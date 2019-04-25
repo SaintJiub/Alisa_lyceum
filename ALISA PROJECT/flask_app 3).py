@@ -2,9 +2,9 @@ from flask import Flask, request
 import logging
 import json
 import random
-
-app = Flask(__name__)
 import translate
+app = Flask(__name__)
+
 
 logging.basicConfig(level=logging.INFO, filename='app.log',
                     format='%(asctime)s %(levelname)s %(name)s %(message)s')
@@ -14,7 +14,8 @@ current_status = "start"
 current_dialog = "start"
 current_char = 3
 repo = 3
-
+mename = ''
+facts = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
 
 
 @app.route('/post', methods=['POST'])
@@ -35,37 +36,45 @@ def main():
 
     return json.dumps(response)
 
+
 fio = False
 fio2 = False
+
+
 def main_dialog(res, req):
-    global current_status, current_dialog, Session_data,fio, fio2
+    global current_status, current_dialog, Session_data, fio, fio2,  mename
     logging.info(str(repo))
 
     user_id = req['session']['user_id']
-    if Session_data.get(user_id):
-        if repo<=2:
-            Session_data[user_id]['username']="грубиян"
-            res['response']['text'] = 'Приятно познакомиться, грубиян'
-        elif repo<=1:
-            Session_data[user_id]['username']="хамло"
-            res['response']['text'] = 'Приятно познакомиться, хамло'
-            return
+    if current_dialog == "change_name":
+        if Session_data.get(user_id):
+            if repo <= 2 and repo >= 1:
+                Session_data[user_id]['username'] = "грубиян"
+                res['response']['text'] = 'Приятно познакомиться, грубиян'
+            elif repo <= 1:
+                Session_data[user_id]['username'] = "хамло"
+                res['response']['text'] = 'Приятно познакомиться, хамло'
+                return
 
-        elif repo>=5 and fio == False and fio2 == False:
-            res['response']['text'] = "Можно узнать Ваше отчество?"
-            fio = True
-            fio2 = True
-            return
-        if repo>=5 and fio:
-            Session_data[user_id]['username'] =  Session_data[user_id]['username'] +" " +analiz_user(req).title()
-            res['response']['text'] = 'Приятно познакомиться, ' + Session_data[user_id]['username']
-            fio = False
+            elif repo >= 3 and repo <=4:
+                Session_data[user_id]['username'] = mename
+                res['response']['text'] = 'Приятно познакомиться, '+ Session_data[user_id]['username']
+                return
 
+
+            elif repo >= 5 and fio == False and fio2 == False:
+                res['response']['text'] = "Можно узнать Ваше отчество?"
+                fio = True
+                fio2 = True
+                return
+            if repo >= 5 and fio:
+                Session_data[user_id]['username'] = Session_data[user_id]['username'] + " " + analiz_user(req).title()
+                res['response']['text'] = 'Приятно познакомиться, ' + Session_data[user_id]['username']
+                fio = False
 
     if current_dialog == "start":
         if req['session']['new']:
             res['response']['text'] = 'Привет! '
-
 
             return
         if current_status == "start":
@@ -74,7 +83,9 @@ def main_dialog(res, req):
 
             Session_data[user_id] = {
                 'suggests': [
+                    "Познакомиться",
                     "Просто поболтать.",
+                    "Что-нибудь интересное",
                     "Переведи текст.",
                     "Вопросы по городам",
                     "Покажи города",
@@ -87,23 +98,36 @@ def main_dialog(res, req):
             res['response']['buttons'] = get_suggests(user_id)
             return
 
+
+
         if current_status == "start_question":
-
-
-            if analiz_user(req) in ['просто поболтать.', 'поболтать', 'поговорим',
-                                                                'поговорить', 'расскажи']:
+            text = analiz_user(req)
+            if text in ['просто поболтать.', 'поболтать', 'поговорим',
+                                    'поговорить', 'расскажи']:
                 current_dialog = "talk"
                 res['response']['text'] = 'Отлично! Как твои дела?'
                 current_status = 0
                 return
-            if analiz_user(req) in ['Вопросы по городам']:
+            if text in ['вопросы по городам']:
                 current_dialog = "city"
                 res['response'][
                     'text'] = 'Отлично! Я могу сказать в какой стране город или сказать расстояние между городами!'
                 current_status = 'NONE'
+
+            if text in ['познакомиться']:
+                current_status = "name"
+                res['response']['text'] = "Как тебя зовут?"
+
                 return
+            if text in ['что-нибудь интересное']:
+                current_dialog = "fact"
+                res['response'][
+                    'text'] = 'Отлично! Я могу сказать многое, хочешь послушать'
+
+                return
+
             if analiz_user(req) in ['переведи текст.', 'переведи', 'переводчик',
-                                                                'нужно перевести']:
+                                    'нужно перевести']:
                 current_dialog = "translite"
                 res['response']['text'] = 'Отлично! Что нужно перевести?'
                 Session_data[user_id]['suggests'] = [
@@ -132,8 +156,32 @@ def main_dialog(res, req):
 
                 return
 
+        if current_status == "name":
+
+            current_status = 'start_question'
+            name = get_first_name(req)
+            if name:
+                Session_data[user_id]['username'] = name.title()
+            else:
+                Session_data[user_id]['username'] = "test".title()
+
+            mename = Session_data[user_id]['username']
+            Session_data[user_id]['suggests'] = [
+                "Просто поболтать.",
+                "Что-нибудь интересное",
+                "Переведи текст.",
+                "Вопросы по городам",
+                "Покажи города",
+            ]
+
+            res['response']['text'] = 'Приятно познакомиться, ' + Session_data[user_id]['username']
+            res['response']['buttons'] = get_suggests(user_id)
+            return
     if current_dialog == 'talk':
         talk_dialog(res, req)
+        return
+    if current_dialog == 'fact':
+        fact_dialog(res, req)
         return
     if current_dialog == "translite":
         translite_dialog(res, req)
@@ -145,7 +193,8 @@ def main_dialog(res, req):
         gallery_dialog(res, req)
         return
 
-
+    res['response']['text'] =  '...'
+    return
 
 
 lang = "ru-en"
@@ -154,21 +203,33 @@ lang = "ru-en"
 def talk_dialog(res, req):
     global current_status, current_dialog
     user_id = req['session']['user_id']
-    Q = [["Q1_0","Q1_1","Q1_2","Q1_3","Q1_4","Q1_5"],
-         ["Q2_0","Q1_1","Q1_2","Q1_3","Q1_4","Q1_5"],
-         ["Q3_0","Q1_1","Q1_2","Q1_3","Q1_4","Q1_5"],
-         ["Q4_0","Q1_1","Q1_2","Q1_3","Q1_4","Q1_5"]]
+    Q = [["Q1_0", "Q1_1", "Q1_2", "Q1_3", "Q1_4", "Q1_5"],
+         ["Q2_0", "Q2_1", "Q2_2", "Q1_3", "Q1_4", "Q1_5"],
+         ["Q3_0", "Q1_1", "Q1_2", "Q1_3", "Q1_4", "Q1_5"],
+         ["Q4_0", "Q1_1", "Q1_2", "Q1_3", "Q1_4", "Q1_5"],
+         ["Q1_0", "Q1_1", "Q1_2", "Q1_3", "Q1_4", "Q1_5"],
+         ["Q2_0", "Q2_1", "Q2_2", "Q1_3", "Q1_4", "Q1_5"],
+         ["Q3_0", "Q1_1", "Q1_2", "Q1_3", "Q1_4", "Q1_5"],
+         ["Q4_0", "Q1_1", "Q1_2", "Q1_3", "Q1_4", "Q1_5"],
+         ["Q1_0", "Q1_1", "Q1_2", "Q1_3", "Q1_4", "Q1_5"],
+         ["Q2_0", "Q2_1", "Q2_2", "Q1_3", "Q1_4", "Q1_5"],
+         ["Q3_0", "Q1_1", "Q1_2", "Q1_3", "Q1_4", "Q1_5"],
+         ["Q4_0", "Q1_1", "Q1_2", "Q1_3", "Q1_4", "Q1_5"]]
     user = analiz_user(req)
-    res['response']['text'] = Session_data[user_id]["username"]+ Q[current_status][repo]
-    current_status +=1
+    res['response']['text'] = Session_data[user_id]["username"] + ",  " + Q[current_status][repo]
+    current_status += 1
 
-    if current_status>= len(Q):
+    if current_status >= len(Q):
         current_status = "start"
         current_dialog = "start"
         return
-
-
-
+def fact_dialog(res, req):
+    global current_status, current_dialog, facts
+    kir = random.randint(1, 20)
+    res['response']['text'] =facts[kir]
+    current_status = "start"
+    current_dialog = "start"
+    return
 
 
 def talk_dialog2(res, req):
@@ -231,6 +292,8 @@ def talk_dialog2(res, req):
             ]
             res['response']['buttons'] = get_suggests(user_id)
             return
+
+
 def translite_dialog(res, req):
     global current_status, current_dialog, Session_data, lang
     user_id = req['session']['user_id']
@@ -258,22 +321,22 @@ def translite_dialog(res, req):
 
 def analiz_user(req):
     global repo
-    words = req['request']['original_utterance'].lower().split()
-    positive = ["спасибо","пожалуйста","вы","вас"]
-    negative = ["робот","машина","глупая","тормоз"]
+    text =  req['request']['original_utterance'].lower()
+    words = text.split()
+    positive = ["спасибо", "пожалуйста", "вы", "вас"]
+    negative = ["робот", "машина", "глупая", "тормоз"]
     for i in words:
         if i in positive:
-            repo +=1
+            repo += 1
         if i in negative:
-            repo -=1
+            repo -= 1
 
-    if repo> 5:
+    if repo > 5:
         repo = 5
-    if repo <0:
-        repo =  0
+    if repo < 0:
+        repo = 0
 
-    return req['request']['original_utterance'].lower()
-
+    return text
 
 
 def gallery_dialog(res, req):
